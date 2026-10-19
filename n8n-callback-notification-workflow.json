@@ -1,0 +1,74 @@
+{
+  "name": "Nightingale Upload Callback Notification",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "nightingale-upload-complete",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "callback-webhook",
+      "name": "Upload Completed",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "nightingale-upload-complete"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst files = Array.isArray(body.files) ? body.files : [];\nconst message = body.uploadedCount === files.length\n  ? `Nightingale upload completed: ${files.join(', ')}`\n  : `Nightingale upload completed with a partial result: ${files.join(', ')}`;\nreturn [{ json: { ...body, notification: message, notificationStatus: 'ready' } }];"
+      },
+      "id": "callback-format-notification",
+      "name": "Format Notification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true, notification: $json.notification, uploadedCount: $json.uploadedCount, files: $json.files } }}",
+        "options": {}
+      },
+      "id": "callback-response",
+      "name": "Acknowledge Callback",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [520, 0]
+    }
+  ],
+  "connections": {
+    "Upload Completed": {
+      "main": [
+        [
+          {
+            "node": "Format Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Notification": {
+      "main": [
+        [
+          {
+            "node": "Acknowledge Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "nightingale-upload-callback-v1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

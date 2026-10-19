@@ -1,0 +1,15 @@
+Churn - Deceased
+Order Taken Back - Discharged
+Order Taken Back - Deceased
+Churn - No Longer Required Service
+Churn - Moved to inhouse
+Churn - No reason provided
+Order Taken Back - No reason provided
+
+NEW SERVICE & RESUME REQUEST,
+PLACED & SCHEDULED ORDERS,
+JOBS ADDED BACK TO PERMANENT DASH,
+JOBS ADDED BACK TO PERMANENT DASH NOW PLACED,
+ORDERS TAKEN OR GIVEN BACK,
+CHURN,
+SERVICE ON HOLD

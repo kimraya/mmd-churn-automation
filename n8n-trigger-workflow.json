@@ -1,0 +1,62 @@
+{
+  "name": "Nightingale Daily Export Trigger",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "nightingale-daily-export",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "trigger-webhook",
+      "name": "Start Daily Export",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "nightingale-daily-export"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://cough-hypocrite-attach.ngrok-free.dev/export-clients",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "REPLACE_WITH_SERVICE_API_KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "trigger-export-request",
+      "name": "Run Nightingale Export",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [260, 0]
+    }
+  ],
+  "connections": {
+    "Start Daily Export": {
+      "main": [
+        [
+          {
+            "node": "Run Nightingale Export",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "nightingale-daily-export-v1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

@@ -1,0 +1,316 @@
+{
+  "name": "Workflow 2: Upload Callback Notification",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "nightingale-upload-complete",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "5083a93c-3a6d-4ebd-85f7-c592c7637c69",
+      "name": "Upload Completed",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        144
+      ],
+      "webhookId": "nightingale-upload-complete"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst files = Array.isArray(body.files) ? body.files : [];\nconst message = body.uploadedCount === files.length\n  ? `Nightingale upload completed: ${files.join(', ')}`\n  : `Nightingale upload completed with a partial result: ${files.join(', ')}`;\nreturn [{ json: { ...body, notification: message, notificationStatus: 'ready' } }];"
+      },
+      "id": "54eb19c0-4d59-439f-87a7-d130f0dece32",
+      "name": "Format Notification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true, notification: $json.notification, uploadedCount: $json.uploadedCount, files: $json.files } }}",
+        "options": {}
+      },
+      "id": "e88285a8-5f12-4fac-95c0-268cb03ba6bf",
+      "name": "Acknowledge Callback",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        528,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst files = Array.isArray(body.files) ? body.files : [];\nconst churnFile = files.find(f => f.toLowerCase().includes('new-churns'));\n\nif (!churnFile) {\n  // Nothing to process this run \u2014 no new-churns file in this upload\n  return [];\n}\n\nreturn [{\n  json: {\n    fileName: churnFile,\n    driveId: 'b!5LI8U-9zuEGR8Mpiv11CX5dfsjMG7vJFqs-9R4iDey-WkeBqAWghT71XbVXo5iHX',\n    dropoffPath: \"Kim's Tasks/[TESTING] Churns\",\n    workbookDriveId: 'b!5LI8U-9zuEGR8Mpiv11CX5dfsjMG7vJFqs-9R4iDey-WkeBqAWghT71XbVXo5iHX',\n    workbookItemId: '01VGWH2OCKTXDAIMCLTZEKUZLQ3VKVB3YU',\n    sheetName: 'Churn',\n    tableName: 'ChurnTable'\n  }\n}];\n"
+      },
+      "id": "b1a2c3d4-1111-4a5b-8c6d-000000000001",
+      "name": "Prepare Churn Job",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        380
+      ],
+      "notes": "tableName is a placeholder ('ChurnTable') until the Churn tab's range is converted into a real Excel Table \u2014 update this once that's done."
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.microsoft.com/v1.0/drives/{{ $json.driveId }}/root:/{{ $json.dropoffPath }}/{{ $json.fileName }}:/content",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "microsoftEntraServicePrincipalApi",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "b1a2c3d4-1111-4a5b-8c6d-000000000002",
+      "name": "Fetch New Churns CSV",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        528,
+        380
+      ],
+      "credentials": {
+        "microsoftEntraServicePrincipalApi": {
+          "id": "JOLBXt31MNj0Ko6B",
+          "name": "n8n entra connection"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "csv",
+        "binaryPropertyName": "data",
+        "options": {}
+      },
+      "id": "b1a2c3d4-1111-4a5b-8c6d-000000000003",
+      "name": "Extract Churn Rows",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        784,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// NOTE: verify these source field names against the real headers in\n// Nightingale's new-churns.csv export, then adjust the right-hand side\n// of each line below to match.\nconst row = $json;\nconst detectedDate = new Date().toLocaleDateString('en-AU'); // dd/mm/yyyy\n\nreturn {\n  json: {\n    DetectedDate: detectedDate,\n    'Internal Record #': row['Internal Record #'] || row['InternalRecordNumber'] || row['Record #'] || '',\n    FirstName: row['FirstName'] || row['First Name'] || '',\n    LastName: row['LastName'] || row['Last Name'] || '',\n    IsActive: row['IsActive'] || row['Is Active'] || 'FALSE',\n    DateOfBirth: row['DateOfBirth'] || row['Date of Birth'] || row['DOB'] || '',\n    ClientTypes: row['ClientTypes'] || row['Client Types'] || '',\n    PrimaryPhone: row['PrimaryPhone'] || row['Primary Phone'] || row['Phone'] || '',\n    Email: row['Email'] || '',\n    Address: row['Address'] || '',\n    ServiceExitDate: row['ServiceExitDate'] || row['Service Exit Date'] || '',\n    ServiceExitReason: row['ServiceExitReason'] || row['Service Exit Reason'] || row['Reason'] || '',\n    Groups: row['Groups'] || ''\n  }\n};\n"
+      },
+      "id": "b1a2c3d4-1111-4a5b-8c6d-000000000004",
+      "name": "Map To Churn Columns",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        380
+      ],
+      "notes": "Verify each source field name on the right-hand side matches the real new-churns.csv headers before relying on this in production."
+    },
+    {
+      "parameters": {
+        "jsCode": "const columns = [\n  'DetectedDate', 'Internal Record #', 'FirstName', 'LastName', 'IsActive',\n  'DateOfBirth', 'ClientTypes', 'PrimaryPhone', 'Email', 'Address',\n  'ServiceExitDate', 'ServiceExitReason', 'Groups'\n];\n\nconst values = $input.all().map(item => columns.map(col => item.json[col] ?? ''));\n\nreturn [{ json: { values } }];\n"
+      },
+      "id": "b1a2c3d4-1111-4a5b-8c6d-000000000005",
+      "name": "Combine Rows For Append",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1296,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.microsoft.com/v1.0/drives/{{ $('Prepare Churn Job').first().json.workbookDriveId }}/items/{{ $('Prepare Churn Job').first().json.workbookItemId }}/workbook/worksheets",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "microsoftEntraServicePrincipalApi",
+        "options": {}
+      },
+      "id": "b1a2c3d4-1111-4a5b-8c6d-000000000006",
+      "name": "Verify Churn Sheet Exists",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1552,
+        380
+      ],
+      "credentials": {
+        "microsoftEntraServicePrincipalApi": {
+          "id": "JOLBXt31MNj0Ko6B",
+          "name": "n8n entra connection"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const expectedSheet = $('Prepare Churn Job').first().json.sheetName;\nconst sheets = ($json.value || []).map(s => s.name);\n\nif (!sheets.includes(expectedSheet)) {\n  throw new Error(`Expected worksheet \"${expectedSheet}\" not found. Found: ${sheets.join(', ')}`);\n}\n\nreturn [{\n  json: {\n    values: $('Combine Rows For Append').first().json.values,\n    tableName: $('Prepare Churn Job').first().json.tableName,\n    workbookDriveId: $('Prepare Churn Job').first().json.workbookDriveId,\n    workbookItemId: $('Prepare Churn Job').first().json.workbookItemId\n  }\n}];\n"
+      },
+      "id": "b1a2c3d4-1111-4a5b-8c6d-000000000007",
+      "name": "Check Sheet Present",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1808,
+        380
+      ],
+      "notes": "Throws (fails the execution loudly) if the 'Churn' worksheet isn't found, instead of silently failing at the append step."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.microsoft.com/v1.0/drives/{{ $json.workbookDriveId }}/items/{{ $json.workbookItemId }}/workbook/tables/{{ $json.tableName }}/rows/add",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "microsoftEntraServicePrincipalApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { values: $json.values } }}",
+        "options": {}
+      },
+      "id": "b1a2c3d4-1111-4a5b-8c6d-000000000008",
+      "name": "Append to Churn Table",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2064,
+        380
+      ],
+      "credentials": {
+        "microsoftEntraServicePrincipalApi": {
+          "id": "JOLBXt31MNj0Ko6B",
+          "name": "n8n entra connection"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Upload Completed": {
+      "main": [
+        [
+          {
+            "node": "Format Notification",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare Churn Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Notification": {
+      "main": [
+        [
+          {
+            "node": "Acknowledge Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Churn Job": {
+      "main": [
+        [
+          {
+            "node": "Fetch New Churns CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch New Churns CSV": {
+      "main": [
+        [
+          {
+            "node": "Extract Churn Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Churn Rows": {
+      "main": [
+        [
+          {
+            "node": "Map To Churn Columns",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map To Churn Columns": {
+      "main": [
+        [
+          {
+            "node": "Combine Rows For Append",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Rows For Append": {
+      "main": [
+        [
+          {
+            "node": "Verify Churn Sheet Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Churn Sheet Exists": {
+      "main": [
+        [
+          {
+            "node": "Check Sheet Present",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Sheet Present": {
+      "main": [
+        [
+          {
+            "node": "Append to Churn Table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "7c2f9a3e-88b1-4d4a-9c2e-3f6a1b2c3d4e",
+  "meta": {
+    "instanceId": "4818f21f3d211ffd8cc54367b9f4b3c3cdcb73f47f9871d5d958d04dad7a20d8"
+  },
+  "nodeGroups": [],
+  "id": "OXvF7zZC9SKGXdoM",
+  "tags": []
+}
