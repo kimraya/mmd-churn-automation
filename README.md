@@ -4,6 +4,113 @@ Logs into Nightingale and exports the Clients table as a CSV
 to a local folder. SharePoint upload is out of scope — a human
 uploads the resulting `downloads/clients.csv` file manually.
 
+## macOS quick start
+
+Step-by-step for running the export on a Mac. SharePoint and n8n are optional:
+if their settings are blank, the files are just saved locally in `downloads/`.
+
+### Step 1: Install Node.js
+
+1. Open **Terminal** (Cmd+Space, type "Terminal", press Enter).
+2. Run `node -v`. If it prints `v18` or higher, skip to Step 2.
+3. Otherwise install Node: `brew install node`, or download the **LTS**
+   installer from https://nodejs.org.
+4. Close and reopen Terminal, then run `node -v` again to confirm.
+
+### Step 2: Go to the project folder
+
+```bash
+cd /Users/kim/Documents/MMD/mmd-churn-automation
+```
+
+### Step 3: Install dependencies
+
+```bash
+npm install
+npx playwright install chromium
+```
+
+The second command downloads the browser the script drives (about 150 MB, one-off).
+
+### Step 4: Create your settings file
+
+```bash
+cp .env.example .env
+open -e .env
+```
+
+Change only these lines (no quotes around values), then save:
+
+```
+NG_BASE_URL=https://nightingale-maidmyday.azurewebsites.net
+NG_EMAIL=your real Nightingale email
+NG_PASSWORD=your real Nightingale password
+HEADLESS=false
+```
+
+Leave the `MS_...` and `SHAREPOINT_...` lines alone (or delete them) so the
+SharePoint upload is skipped. `.env` is git-ignored and never committed.
+
+### Step 5: First run, with the browser visible
+
+```bash
+npm run export-batch
+```
+
+A Chromium window opens, logs in, loads the Clients page and closes (about a
+minute). Don't click in it. When it finishes you should see:
+
+```
+✓ clients: clients.csv
+1/1 report exported successfully.
+SharePoint not configured yet ... skipping upload.
+```
+
+(`npm run test-local`, mentioned further down, does not exist. Use `export-batch`.)
+
+### Step 6: Check the results
+
+```bash
+open downloads
+```
+
+| File | What it is |
+|---|---|
+| `clients.csv` | Full client list from Nightingale. |
+| `all-churns.csv` | Every client with an exit date or reason, plus a `DetectedDate` column. |
+| `new-churns.csv` | Only clients whose exit date is today. Can be empty. |
+
+On the very first run `all-churns.csv` lists every existing churn, all marked
+with today's date. That is expected.
+
+### Step 7: Run it again each day
+
+Run `npm run export-batch` whenever you want a fresh export.
+
+- Keep `clients.csv` and `all-churns.csv` between runs: they are the history.
+  Deleting them restarts the history.
+- Close `clients.csv` in Excel first, or the run fails with
+  "could not replace clients.csv".
+
+### Step 8 (optional): Run without the browser window
+
+Once Step 5 works, set `HEADLESS=true` in `.env`.
+
+### Troubleshooting
+
+| Problem | What to do |
+|---|---|
+| `command not found: npm` | Node isn't installed. Redo Step 1 and reopen Terminal. |
+| "Executable doesn't exist" (Playwright) | Run `npx playwright install chromium` again. |
+| Login timeout or selector error | Keep `HEADLESS=false` and watch where it stops. A screenshot is saved in `debug/`. Adjust selectors in `lib/nightingale.js`. |
+| "Could not capture the Clients grid request" | The Clients page didn't fully load. Re-run, and confirm you can open it in a normal browser. |
+| Login rejected | Check `.env`, and log in manually once to confirm the account works. |
+
+> Don't fill in the SharePoint settings yet: a same-day re-run can append
+> duplicate rows to the Excel churn table through the n8n workflow.
+
+---
+
 ## 1. Local setup
 
 ```bash
