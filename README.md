@@ -1,8 +1,8 @@
 # Nightingale Clients Export Service
 
-Logs into Nightingale and exports the Clients table as a CSV
-to a local folder. SharePoint upload is out of scope — a human
-uploads the resulting `downloads/clients.csv` file manually.
+Logs into Nightingale, reads the Clients table, and keeps one output file:
+`downloads/all-churns.csv` (every client with an exit date or reason). It is
+uploaded to SharePoint, which triggers the n8n workflow.
 
 ## macOS quick start
 
@@ -61,7 +61,8 @@ A Chromium window opens, logs in, loads the Clients page and closes (about a
 minute). Don't click in it. When it finishes you should see:
 
 ```
-✓ clients: clients.csv
+  [CHURNS] <n> total in history.
+✓ clients: all-churns.csv
 1/1 report exported successfully.
 SharePoint not configured yet ... skipping upload.
 ```
@@ -74,23 +75,19 @@ SharePoint not configured yet ... skipping upload.
 open downloads
 ```
 
-| File | What it is |
-|---|---|
-| `clients.csv` | Full client list from Nightingale. |
-| `all-churns.csv` | Every client with an exit date or reason, plus a `DetectedDate` column. |
-| `new-churns.csv` | Only clients whose exit date is today. Can be empty. |
-
-On the very first run `all-churns.csv` lists every existing churn, all marked
-with today's date. That is expected.
+`all-churns.csv` is the only output: every client with an exit date or
+reason, plus a `DetectedDate` column (the date of the run that first saw them).
+On the very first run it lists every existing churn, all marked with today's
+date. That is expected.
 
 ### Step 7: Run it again each day
 
 Run `npm run export-batch` whenever you want a fresh export.
 
-- Keep `clients.csv` and `all-churns.csv` between runs: they are the history.
-  Deleting them restarts the history.
-- Close `clients.csv` in Excel first, or the run fails with
-  "could not replace clients.csv".
+- Keep `all-churns.csv` between runs: it is the history. Deleting it restarts
+  the history.
+- Close `all-churns.csv` in Excel first. If it is locked, the run fails
+  (exit code 1) and nothing is uploaded.
 
 ### Step 8 (optional): Run without the browser window
 
@@ -151,22 +148,15 @@ running it yourself.
 
 ## 3. Daily churn history and detection
 
-Each run downloads a fresh Nightingale snapshot to a temporary file, then
-compares it with the previous `downloads/clients.csv` using `InternalRecordNumber`.
-Rows are written to `downloads/new-churns.csv` only when Service Exit Date or
-Service Exit Reason changes from blank to populated. After comparison, the
-fresh export replaces `downloads/clients.csv`.
+Each run reads a fresh Nightingale snapshot from a temporary file (deleted
+afterwards) and merges every client that has a Service Exit Date or Reason into
+`downloads/all-churns.csv`. It keeps one row per Internal Record #, updates that
+row if its exit details change, and never duplicates records across runs. The
+n8n workflow upserts these rows into the Churn / Orders Taken Back tabs.
 
-The permanent dashboard source is `downloads/all-churns.csv`. It keeps one
-row per Internal Record #, updates that row if its exit details change, and
-does not duplicate records across daily runs. `new-churns.csv` is only the
-latest daily delta; `all-churns.csv` is the historical list to eventually
-send to SharePoint or use for dashboard refreshes.
-
-If the snapshot and history files are deleted, the next run seeds the history
-with all currently populated churn records and labels them with that run's
-date. Keep `clients.csv` and `all-churns.csv` between daily runs. A record with
-a new Internal Record # is treated as a separate service record.
+If `all-churns.csv` is deleted, the next run seeds the history with all
+currently populated churn records and labels them with that run's date. A
+record with a new Internal Record # is treated as a separate service record.
 
 ---
 
